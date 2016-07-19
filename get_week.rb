@@ -9,17 +9,10 @@ require 'optparse'
 require 'ostruct'
 require 'restclient'
 require 'axlsx'
-require 'pry'
+#require 'pry'
 
 $releases=['wheezy','jessie']
 $global = {}
-
-#cpe:2.3:a:mozilla:firefox_esr:38.5.1
-#cpe:2.3:a:mozilla:firefox_esr:38.5.0
-#cpe:2.3:a:mozilla:firefox_esr:38.4.0
-#cpe:2.3:a:mozilla:firefox_esr:38.3.0
-#cpe:2.3:a:mozilla:firefox_esr:38.2.1
-#cpe:2.3:a:mozilla:firefox_esr:38.2.0
 
 # parse debsec base, searching for packages impacted by cve
 def find_debian_patch(debsec,cve)
@@ -58,7 +51,6 @@ def output_cve_to_excel(c)
 	next if cve[:summary] =~ /^\*\* DISPUTED \*\*/
 	vuln_product = cve[:vulnerable_configuration].map {|m| m.split(':')[3..4].join(' / ') }.uniq.join("\x0D\x0A")
 	references = cve[:references].join("\x0D\x0A")
-	#binding.pry
 	ws.add_row [ cve["id"], vuln_product, cve["cvss"],cve[:Published][0,10],cve[:Modified][0,10], cve["summary"],references ], :style => default
       end
       ws.column_widths 15,30,15,15,15,60,40
@@ -71,7 +63,6 @@ def output_debian_to_excel(packages)
 
   $global["excel"].workbook do |wb|
     styles = wb.styles
-    #title = styles.add_style :sz => 15, :b => true, :u => true
     default = styles.add_style alignment: { wrap_text: true,:horizontal => :left, :vertical => :top }, height: 10
     header = styles.add_style :bg_color => '00', :fg_color => 'FF', :b => true
 
@@ -85,7 +76,6 @@ def output_debian_to_excel(packages)
 	    else
 	      status = stat['status']
 	    end
-	    #ws.add_row [ cve, pkg, rel, status, stat['fixed_version'],infos['published'], infos['modified'], infos['description'], infos['cvss'], infos['references'] ], :style =>  default
 	    ws.add_row [ cve, infos['cvss'], pkg, rel, status, stat['fixed_version'],infos['published'], infos['modified'], infos['description'], infos['references'] ]
 	  end
 	end
@@ -106,7 +96,6 @@ def list_debian_patchs(c)
   c.each do |cve|
     next if cve[:summary] =~ /^\*\* REJECT \*\*  DO NOT USE THIS CANDIDATE NUMBER/
     next if cve[:summary] =~ /^\*\* DISPUTED \*\*/
-    #puts "[ %s / CVSS %s / published : %s ]" % [cve[:id],cve[:cvss],cve[:Published][0,10] ]
     puts "[ %s / CVSS %s / published : %s / modified : %s ]" % [cve[:id],cve[:cvss],cve[:Published][0,10],cve[:Modified][0,10] ]
     if ($options.quiet.nil?)
       puts "\t[Summary :]\n%s" % [cve[:summary]]
