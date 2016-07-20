@@ -9,6 +9,7 @@ require 'optparse'
 require 'ostruct'
 require 'restclient'
 require 'axlsx'
+require 'json'
 #require 'pry'
 
 $releases=['wheezy','jessie']
@@ -17,7 +18,7 @@ $global = {}
 # parse debsec base, searching for packages impacted by cve
 def find_debian_patch(debsec,cve)
   references = cve[:references].join("\x0D\x0A")
-  packages={cve["id"] => {"packages" => {}, "description" => cve["summary"], "cvss" => cve["cvss"].to_s, "published" => cve["Published"][0,10], "modified" => cve["Modified"][0,10], "references" => references } }
+  packages={cve["id"] => {"packages" => {}, "description" => cve["summary"], "cvss" => cve["cvss"].to_s, "published" => cve["Published"].strftime("%Y-%m-%d"), "modified" => cve["Modified"].strftime("%Y-%m-%d"), "references" => references } }
   debsec.keys.each do |k|
     if (not debsec[k][cve["id"]].nil?)
       $releases.each do |release|
@@ -51,7 +52,7 @@ def output_cve_to_excel(c)
 	next if cve[:summary] =~ /^\*\* DISPUTED \*\*/
 	vuln_product = cve[:vulnerable_configuration].map {|m| m.split(':')[3..4].join(' / ') }.uniq.join("\x0D\x0A")
 	references = cve[:references].join("\x0D\x0A")
-	ws.add_row [ cve["id"], vuln_product, cve["cvss"],cve[:Published][0,10],cve[:Modified][0,10], cve["summary"],references ], :style => default
+	ws.add_row [ cve["id"], vuln_product, cve["cvss"],cve[:Published].strftime("%Y-%m-%d"),cve[:Modified].strftime("%Y-%m-%d"), cve["summary"],references ], :style => default
       end
       ws.column_widths 15,30,15,15,15,60,40
     end
@@ -90,13 +91,12 @@ end
 
 def list_debian_patchs(c)
   r=RestClient.get("https://security-tracker.debian.org/tracker/data/json")
-  #r=File.read('json')
   h=JSON.parse(r)
   packages={}
   c.each do |cve|
     next if cve[:summary] =~ /^\*\* REJECT \*\*  DO NOT USE THIS CANDIDATE NUMBER/
     next if cve[:summary] =~ /^\*\* DISPUTED \*\*/
-    puts "[ %s / CVSS %s / published : %s / modified : %s ]" % [cve[:id],cve[:cvss],cve[:Published][0,10],cve[:Modified][0,10] ]
+    puts "[ %s / CVSS %s / published : %s / modified : %s ]" % [cve[:id],cve[:cvss],cve[:Published].strftime("%Y-%m-%d"),cve[:Modified].strftime("%Y-%m-%d") ]
     if ($options.quiet.nil?)
       puts "\t[Summary :]\n%s" % [cve[:summary]]
       puts "\t[References :]"
@@ -110,11 +110,9 @@ def list_debian_patchs(c)
 	puts "\t"+vc
       end
       puts "\t[ deb patchs ]"
-      #pp packages
     end
     packages.merge!(find_debian_patch(h,cve))
   end
-  #binding.pry
   output_debian_to_excel(packages)
 
 end
@@ -134,7 +132,7 @@ end.parse!
 
 Mongo::Logger.logger.level = ::Logger::FATAL
 
-url='mongodb://u-dev:27017/cvedb'
+url='mongodb://127.0.0.1:27017/cvedb'
 
 if (not $options.year.nil? or not $options.week.nil?)
   if ($options.year.nil? or $options.week.nil?)
@@ -155,14 +153,14 @@ find_opts = {}
 if (not $options.from.nil?)
   from=DateTime.parse($options.from)
   to=DateTime.parse($options.to)
-  ind_opts.merge!(Published: {'$gt' => from.to_s, '$lt' => to.to_s})
+  ind_opts.merge!(Published: {'$gt' => from, '$lt' => to})
   #find_opts.merge!('$or' => [ { Published: {'$gt' => from.to_s, '$lt' => to.to_s} }, { Modified: {'$gt' => from.to_s, '$lt' => to.to_s } } ] )
 end
 
 if (not $options.year.nil?)
   from=Date.commercial($options.year.to_i,$options.week.to_i)
   to=from+7
-  find_opts.merge!(Published: {'$gt' => from.to_s, '$lt' => to.to_s})
+  find_opts.merge!(Published: {'$gt' => from, '$lt' => to})
   #find_opts.merge!('$or' => [ { Published: {'$gt' => from.to_s, '$lt' => to.to_s} }, { Modified: {'$gt' => from.to_s, '$lt' => to.to_s } } ] )
 end
 
@@ -190,21 +188,18 @@ puts find_opts
 
 c_matching=cves.find(find_opts)
 
-create_excel()
-
 if (not $options.excel.nil?)
+  create_excel()
   list_debian_patchs(c_matching)
+  output_cve_to_excel(c_matching)
+  write_excel()
 end
-
-output_cve_to_excel(c_matching)
-
-write_excel()
 
 exit unless $options.quiet.nil?
 
 c_matching.each do |cve|
   next if cve[:summary] =~ /^\*\* REJECT \*\*  DO NOT USE THIS CANDIDATE NUMBER/
-  puts "[ %s / CVSS %s / published : %s / modified : %s ]" % [cve[:id],cve[:cvss],cve[:Published][0,10],cve[:Modified][0,10] ]
+  puts "[ %s / CVSS %s / published : %s / modified : %s ]" % [cve[:id],cve[:cvss],cve[:Published].strftime("%Y-%m-%d"),cve[:Modified].strftime("%Y-%m-%d") ]
   if ($options.quiet.nil?)
     puts "\t[Summary :]\n%s" % [cve[:summary]]
     puts "\t[References :]"
@@ -218,7 +213,4 @@ c_matching.each do |cve|
   end
 
 end
-
-
-
 
