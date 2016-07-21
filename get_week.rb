@@ -67,15 +67,15 @@ def output_cve_to_excel(c)
     default = styles.add_style alignment: { wrap_text: true,:horizontal => :left, :vertical => :top }, height: 10
 
     wb.add_worksheet(:name => 'All') do  |ws|
-      ws.add_row ['CVE', 'Product', 'CVSS Score','Published','Modified','Description','References'], :style => header
+      ws.add_row ['CVE','CVSS Score', 'Product', 'Published','Modified','Description','References'], :style => header
       c.each do |cve|
 	next if cve[:summary] =~ /^\*\* REJECT \*\*  DO NOT USE THIS CANDIDATE NUMBER/
 	next if cve[:summary] =~ /^\*\* DISPUTED \*\*/
 	vuln_product = cve[:vulnerable_configuration].map {|m| m.split(':')[3..4].join(' / ') }.uniq.join("\x0D\x0A")
 	references = cve[:references].join("\x0D\x0A")
-	ws.add_row [ cve["id"], vuln_product, cve["cvss"],cve[:Published].strftime("%Y-%m-%d"),cve[:Modified].strftime("%Y-%m-%d"), cve["summary"],references ], :style => default
+	ws.add_row [ cve["id"],cve["cvss"], vuln_product, cve[:Published].strftime("%Y-%m-%d"),cve[:Modified].strftime("%Y-%m-%d"), cve["summary"],references ], :style => default
       end
-      ws.column_widths 15,30,15,15,15,60,40
+      ws.column_widths 15,15,30,15,15,60,40
     end
   end
 end
