@@ -39,13 +39,34 @@ def write_excel
   $global["excel"].serialize $options.excel
 end
 
+def output_ms_to_excel(c)
+  $global["excel"].workbook do |wb|
+    styles = wb.styles
+    header = styles.add_style :bg_color => '00', :fg_color => 'FF', :b => true
+    default = styles.add_style alignment: { wrap_text: true,:horizontal => :left, :vertical => :top }, height: 10
+
+    wb.add_worksheet(:name => 'Microsoft') do  |ws|
+      ws.add_row ['CVE', 'CVSS Score','Product','Published','Modified','Description','References'], :style => header
+      c.each do |cve|
+	next if cve[:summary] =~ /^\*\* REJECT \*\*  DO NOT USE THIS CANDIDATE NUMBER/
+	next if cve[:summary] =~ /^\*\* DISPUTED \*\*/
+	next unless cve[:references].grep(/technet.microsoft.com\/security\/bulletin/).any?
+	vuln_product = cve[:vulnerable_configuration].map {|m| m.split(':')[3..4].join(' / ') }.uniq.join("\x0D\x0A")
+	references = cve[:references].join("\x0D\x0A")
+	ws.add_row [ cve["id"], cve["cvss"], vuln_product, cve[:Published].strftime("%Y-%m-%d"),cve[:Modified].strftime("%Y-%m-%d"), cve["summary"],references ], :style => default
+      end
+      ws.column_widths 15,15,30,15,15,60,40
+    end
+  end
+end
+
 def output_cve_to_excel(c)
   $global["excel"].workbook do |wb|
     styles = wb.styles
     header = styles.add_style :bg_color => '00', :fg_color => 'FF', :b => true
     default = styles.add_style alignment: { wrap_text: true,:horizontal => :left, :vertical => :top }, height: 10
 
-    wb.add_worksheet(:name => 'Divers') do  |ws|
+    wb.add_worksheet(:name => 'All') do  |ws|
       ws.add_row ['CVE', 'Product', 'CVSS Score','Published','Modified','Description','References'], :style => header
       c.each do |cve|
 	next if cve[:summary] =~ /^\*\* REJECT \*\*  DO NOT USE THIS CANDIDATE NUMBER/
@@ -132,7 +153,7 @@ end.parse!
 
 Mongo::Logger.logger.level = ::Logger::FATAL
 
-url='mongodb://127.0.0.1:27017/cvedb'
+url='mongodb://u-dev:27017/cvedb'
 
 if (not $options.year.nil? or not $options.week.nil?)
   if ($options.year.nil? or $options.week.nil?)
@@ -191,6 +212,7 @@ c_matching=cves.find(find_opts)
 if (not $options.excel.nil?)
   create_excel()
   list_debian_patchs(c_matching)
+  output_ms_to_excel(c_matching)
   output_cve_to_excel(c_matching)
   write_excel()
 end
